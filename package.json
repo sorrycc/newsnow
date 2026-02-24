@@ -1,13 +1,18 @@
 {
-  "name": "newsnow-cli",
+  "name": "newsnow",
   "version": "1.0.0",
   "type": "module",
   "bin": {
-    "newsnow": "./src/cli.ts"
+    "newsnow": "./dist/src/cli.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "start": "bun src/cli.ts",
-    "test": "bun test"
+    "test": "bun test",
+    "build": "tsc",
+    "release": "bun run build && npm publish"
   },
   "dependencies": {
     "cheerio": "^1.0.0",

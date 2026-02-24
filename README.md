@@ -1,4 +1,4 @@
-# newsnow-cli
+# newsnow
 
 A command-line tool to fetch trending news and hot topics from 66 sources across 44 platforms. Built with TypeScript, runs on Bun.
 
