@@ -1,5 +1,9 @@
 # newsnow
 
+[![npm version](https://img.shields.io/npm/v/newsnow.svg)](https://www.npmjs.com/package/newsnow)
+[![npm downloads](https://img.shields.io/npm/dm/newsnow.svg)](https://www.npmjs.com/package/newsnow)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A command-line tool to fetch trending news and hot topics from 66 sources across 44 platforms. Built with TypeScript, runs on Bun.
 
 Ported from [ourongxing/newsnow](https://github.com/ourongxing/newsnow) server sources.
@@ -7,26 +11,32 @@ Ported from [ourongxing/newsnow](https://github.com/ourongxing/newsnow) server s
 ## Install
 
 ```bash
-bun install
+npm install -g newsnow
+```
+
+Or use directly with npx:
+
+```bash
+npx newsnow
 ```
 
 ## Usage
 
 ```bash
 # Show help
-bun src/cli.ts --help
+newsnow --help
 
 # List all available sources
-bun src/cli.ts list
+newsnow list
 
 # Fetch news from a source
-bun src/cli.ts hackernews
+newsnow hackernews
 
 # Output as JSON (pipeable to jq, etc.)
-bun src/cli.ts hackernews --json
+newsnow hackernews --json
 
 # List sources as JSON
-bun src/cli.ts list --json
+newsnow list --json
 ```
 
 ## Sources
@@ -94,30 +104,6 @@ Some sources may be blocked by Cloudflare or require authentication:
 bun test
 ```
 
-## Project Structure
-
-```
-src/
-  cli.ts              # CLI entry point (raw process.argv)
-  types.ts            # NewsItem type definitions
-  fetch.ts            # HTTP client (ofetch wrapper)
-  crypto.ts           # md5, SHA-1, base64 helpers
-  utils.ts            # Date parsing utilities
-  rss.ts              # RSS feed parser
-  sources/
-    index.ts          # Source registry (all sources merged)
-    baidu.ts          # One file per platform
-    bilibili.ts
-    cls/              # Multi-file sources
-      index.ts
-      utils.ts
-    coolapk/
-      index.ts
-    ...
-test/
-  cli.test.ts
-```
-
 ## Dependencies
 
 - [cheerio](https://github.com/cheeriojs/cheerio) - HTML parsing
@@ -127,4 +113,4 @@ test/
 
 ## License
 
-ISC
+MIT
