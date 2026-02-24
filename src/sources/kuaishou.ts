@@ -2,7 +2,9 @@ import { myFetch } from "../fetch.js"
 import type { NewsItem, SourceDef } from "../types.js"
 
 async function handler(): Promise<NewsItem[]> {
-  const html = await myFetch("https://www.kuaishou.com/?isHome=1")
+  const html = await myFetch("https://www.kuaishou.com/?isHome=1", {
+    headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36" },
+  })
   const matches = (html as string).match(/window\.__APOLLO_STATE__\s*=\s*(\{.+?\});/)
   if (!matches) throw new Error("无法获取快手热榜数据")
   const data: any = JSON.parse(matches[1])

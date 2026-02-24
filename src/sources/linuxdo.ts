@@ -15,7 +15,9 @@ interface Res {
 }
 
 const hot = async (): Promise<NewsItem[]> => {
-  const res = await myFetch<Res>("https://linux.do/top/daily.json")
+  const res = await myFetch<Res>("https://linux.do/top/daily.json", {
+    headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36" },
+  })
   return res.topic_list.topics
     .filter(k => k.visible && !k.archived && !k.pinned)
     .map(k => ({
@@ -26,7 +28,9 @@ const hot = async (): Promise<NewsItem[]> => {
 }
 
 const latest = async (): Promise<NewsItem[]> => {
-  const res = await myFetch<Res>("https://linux.do/latest.json?order=created")
+  const res = await myFetch<Res>("https://linux.do/latest.json?order=created", {
+    headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36" },
+  })
   return res.topic_list.topics
     .filter(k => k.visible && !k.archived && !k.pinned)
     .map(k => ({

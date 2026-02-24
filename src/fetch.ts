@@ -37,6 +37,6 @@ export async function myFetch<T = any>(url: string, opts?: MyFetchOptions): Prom
 
 export const $fetch = Object.assign(ofetch, {
   raw: async (url: string, opts?: any) => {
-    return ofetch.raw(url, { redirect: "manual", ...opts })
+    return fetch(url, { redirect: "manual", ...opts })
   },
 })
