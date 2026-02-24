@@ -1,0 +1,23 @@
+{
+  "name": "newsnow-cli",
+  "version": "1.0.0",
+  "type": "module",
+  "bin": {
+    "newsnow": "./src/cli.ts"
+  },
+  "scripts": {
+    "start": "bun src/cli.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "dayjs": "^1.11.0",
+    "iconv-lite": "^0.6.3",
+    "ofetch": "^1.4.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}
