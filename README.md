@@ -3,6 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/newsnow.svg)](https://www.npmjs.com/package/newsnow)
 [![npm downloads](https://img.shields.io/npm/dm/newsnow.svg)](https://www.npmjs.com/package/newsnow)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![clawhub](https://img.shields.io/badge/clawhub-view-blue)](https://clawhub.ai/sorrycc/newsnow)
 
 A command-line tool to fetch trending news and hot topics from 66 sources across 44 platforms. Built with TypeScript, runs on Bun.
 
