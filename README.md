@@ -84,6 +84,10 @@ Some sources require environment variables:
 
 - `producthunt` requires `PRODUCTHUNT_API_TOKEN`
 
+Some sources may be blocked by Cloudflare or require authentication:
+
+- `linuxdo`, `linuxdo-latest`, `linuxdo-hot` - May return 403 Forbidden
+
 ## Testing
 
 ```bash
