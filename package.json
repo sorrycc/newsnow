@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "start": "bun src/cli.ts",
-    "test": "bun test",
+    "test": "bun test test/*.test.ts",
     "build": "tsc",
     "release": "bun run build && npm publish"
   },

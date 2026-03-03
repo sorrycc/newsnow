@@ -25,8 +25,8 @@ describe("registry", () => {
 })
 
 describe("cli", () => {
-  test("list command outputs sources", async () => {
-    const proc = Bun.spawn(["bun", "src/cli.ts", "list", "--json"], {
+  test("list command outputs all sources with profile all", async () => {
+    const proc = Bun.spawn(["bun", "src/cli.ts", "list", "--json", "--profile", "all"], {
       cwd: import.meta.dir + "/..",
       stdout: "pipe",
     })
@@ -35,6 +35,19 @@ describe("cli", () => {
     expect(Array.isArray(names)).toBe(true)
     expect(names.length).toBeGreaterThan(40)
     expect(names).toContain("hackernews")
+  })
+
+  test("list defaults to high-quality profile", async () => {
+    const proc = Bun.spawn(["bun", "src/cli.ts", "list", "--json"], {
+      cwd: import.meta.dir + "/..",
+      stdout: "pipe",
+    })
+    const output = await new Response(proc.stdout).text()
+    const names = JSON.parse(output)
+    expect(Array.isArray(names)).toBe(true)
+    expect(names.length).toBeGreaterThan(10)
+    expect(names).toContain("thepaper")
+    expect(names).not.toContain("weibo")
   })
 
   test("help command works", async () => {
