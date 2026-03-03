@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { SourceDef } from "../src/types.js"
-import { fetchWithFallback } from "../src/source-health.js"
+import { buildSourceQualityContext, fetchWithFallback } from "../src/source-health.js"
 
 describe("fetchWithFallback", () => {
   test("uses fallback when primary fails", async () => {
@@ -42,5 +42,20 @@ describe("fetchWithFallback", () => {
     expect(result.fallbackUsed).toBe(false)
     expect(result.usedSource).toBe("linuxdo")
     expect(result.health.status).toBe("failed")
+  })
+
+  test("maps source quality context fields", () => {
+    const ctx = buildSourceQualityContext(
+      { status: "degraded", score: 42, reason: "fallback used" },
+      [
+        { source: "a", ok: false, isArray: false, itemCount: 0, durationMs: 100, usedAsFallback: false, error: "blocked" },
+        { source: "b", ok: true, isArray: true, itemCount: 2, durationMs: 120, usedAsFallback: true },
+      ],
+      true,
+    )
+    expect(ctx.source_health_score).toBe(42)
+    expect(ctx.fallback_used).toBe(true)
+    expect(ctx.attempt_error_count).toBe(1)
+    expect(ctx.health_status).toBe("degraded")
   })
 })

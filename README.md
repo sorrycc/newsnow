@@ -53,6 +53,12 @@ newsnow hackernews --json
 # Include fetch/quality/enhance metadata in JSON mode
 newsnow hackernews --json --meta
 
+# Print AI quality rubric/schema
+newsnow quality-rubric --json
+
+# Append per-item quality signals for AI judge
+newsnow feed --json --meta --quality-signals
+
 # Enhance summary text by fetching article pages
 newsnow thepaper --json --enhance --enhance-limit 5
 ```
@@ -77,6 +83,15 @@ Aggregate multiple sources into one feed.
 newsnow feed
 newsnow feed --profile all --limit 100 --per-source 2
 newsnow feed --json --meta
+newsnow feed --json --meta --quality-signals
+```
+
+### quality-rubric
+
+Return fixed quality rubric and AI decision schema in JSON format.
+
+```bash
+newsnow quality-rubric --json
 ```
 
 ### source fetch
@@ -99,6 +114,7 @@ newsnow linuxdo --json --meta
 
 - `--json` Output JSON
 - `--meta` Include fetch/quality/enhance metadata (JSON mode)
+- `--quality-signals` JSON mode only, append `quality_signals`/`quality_gate_hint`/`quality_reasons` to each item
 - `--raw` Disable dedupe/quality filtering
 - `--enhance` Fetch article pages and enrich `extra.hover`
 - `--enhance-limit <n>` Max items to enhance per source (default: `5`)
@@ -108,6 +124,25 @@ newsnow linuxdo --json --meta
 - `--limit <n>` Max total items in `feed` mode (default: `120`)
 - `--per-source <n>` Max items per source in `feed` mode (default: `8`)
 - `--concurrency <n>` Fetch concurrency in `feed` mode (default: `4`)
+
+## AI Quality Workflow
+
+Use this 4-step protocol when `newsnow` acts as AI content input:
+
+```bash
+# 1) Get fixed rubric and decision schema
+newsnow quality-rubric --json
+
+# 2) Get candidates + quality monitor + per-item signals
+newsnow feed --json --meta --quality-signals
+```
+
+3. AI only evaluates `quality_gate_hint=review` or high-risk items.
+4. AI returns final decision: `reject | downrank | pass`.
+
+Runtime JSON (when `--meta` or `--quality-signals`):
+- Top-level: `quality_schema_version`, `quality_monitor`, `quality_policy`
+- Per-item: `quality_signals`, `quality_gate_hint`, `quality_reasons`
 
 ## Sources
 

@@ -29,6 +29,7 @@ Follow this pattern:
 2. **List or Feed** - Use `list` to inspect source names, or `feed` to aggregate many sources.
 3. **Source Fetch** - If you need one source only, call `newsnow <source>`.
 4. **Diagnostics / Enrichment** - Use `--meta` for health/quality diagnostics; use `--enhance` for summary enrichment.
+5. **AI Quality Signals** - Use `quality-rubric --json` + `--quality-signals` to feed AI judge inputs.
 
 | Need | Command | When |
 |---|---|---|
@@ -37,6 +38,8 @@ Follow this pattern:
 | Aggregate default feed | `newsnow feed` | Want multi-source readable feed |
 | Aggregate trending feed | `newsnow feed --profile trending` | Want hot-topic stream |
 | See feed diagnostics | `newsnow feed --json --meta` | Need fallback/quality stats |
+| Get AI quality rubric | `newsnow quality-rubric --json` | Need fixed LLM decision rubric/schema |
+| Get AI-ready feed signals | `newsnow feed --json --meta --quality-signals` | Need per-item quality signals + run monitor |
 | Get news | `newsnow <source>` | Know the source, want readable output |
 | Get news as JSON | `newsnow <source> --json` | Need structured data for processing |
 | Enrich summary text | `newsnow <source> --json --enhance --enhance-limit 5` | Need better `extra.hover` coverage |
@@ -62,6 +65,13 @@ newsnow feed
 newsnow feed --profile trending
 newsnow feed --profile all --limit 100 --per-source 2
 newsnow feed --json --meta
+newsnow feed --json --meta --quality-signals
+```
+
+### quality-rubric
+
+```bash
+newsnow quality-rubric --json
 ```
 
 ### Fetch a source
@@ -84,6 +94,14 @@ When `--meta` is enabled (JSON mode), output wraps `items` with diagnostics:
 - `sourceUsed`, `fallbackUsed`, `health`, `attempts`
 - `quality` stats (dedupe/filter counts)
 - `enhance` stats when `--enhance` is enabled
+- `quality_schema_version`, `quality_monitor`, `quality_policy`
+
+When `--quality-signals` is enabled (JSON mode), each item adds:
+- `quality_signals`
+- `quality_gate_hint` (`reject|review|pass`)
+- `quality_reasons`
+
+AI final decision enum (outside CLI): `reject|downrank|pass`
 
 ## Sources
 

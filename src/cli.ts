@@ -1,9 +1,23 @@
 #!/usr/bin/env bun
 import { enhanceNewsItems, type EnhanceStats } from "./enhance.js"
-import { normalizeNewsItems, type QualityStats } from "./quality.js"
+import {
+  evaluateQualityForItems,
+  getQualityRubric,
+  normalizeNewsItems,
+  QUALITY_POLICY,
+  QUALITY_SCHEMA_VERSION,
+  summarizeQualityBySource,
+  type PerSourceQualityStats,
+  type QualityGateStats,
+  type QualityStats,
+} from "./quality.js"
 import { sources } from "./sources/index.js"
 import { getSourcesByProfile, isSourceProfile, type SourceProfile } from "./source-profiles.js"
-import { fetchWithFallback } from "./source-health.js"
+import {
+  buildSourceQualityContext,
+  fetchWithFallback,
+  type SourceQualityContext,
+} from "./source-health.js"
 import type { NewsItem } from "./types.js"
 
 interface ParsedCliArgs {
@@ -11,6 +25,7 @@ interface ParsedCliArgs {
   json: boolean
   raw: boolean
   meta: boolean
+  qualitySignals: boolean
   enhance: boolean
   enhanceLimit: number
   noFallback: boolean
@@ -31,6 +46,9 @@ interface ProcessedSourceResult {
   }
   attempts: any[]
   quality: QualityStats
+  qualityGate: QualityGateStats
+  qualityBySource: PerSourceQualityStats
+  sourceQualityContext: SourceQualityContext
   enhance?: EnhanceStats
   items: NewsItem[]
 }
@@ -43,6 +61,27 @@ interface FeedSourceReport {
   health?: string
   itemCount: number
   error?: string
+}
+
+interface QualityMonitorSource {
+  source: string
+  source_used?: string
+  item_count: number
+  rule_reject_rate: number
+  health_status: "healthy" | "degraded" | "failed"
+  fallback_used: boolean
+}
+
+interface QualityMonitor {
+  total_items: number
+  rule_reject_count: number
+  review_count: number
+  pass_count: number
+  degraded_source_count: number
+  fallback_source_count: number
+  avg_source_health_score: number
+  sources: QualityMonitorSource[]
+  quality_alerts: string[]
 }
 
 function requireOptionValue(argv: string[], index: number, flag: string): string {
@@ -65,6 +104,7 @@ function parseCliArgs(argv: string[]): ParsedCliArgs {
   let json = false
   let raw = false
   let meta = false
+  let qualitySignals = false
   let enhance = false
   let noFallback = false
   let enhanceLimit = 5
@@ -86,6 +126,10 @@ function parseCliArgs(argv: string[]): ParsedCliArgs {
     }
     if (arg === "--meta") {
       meta = true
+      continue
+    }
+    if (arg === "--quality-signals") {
+      qualitySignals = true
       continue
     }
     if (arg === "--enhance") {
@@ -141,6 +185,7 @@ function parseCliArgs(argv: string[]): ParsedCliArgs {
     json,
     raw,
     meta,
+    qualitySignals,
     enhance,
     enhanceLimit,
     noFallback,
@@ -164,15 +209,18 @@ function printHelp() {
   console.log(`Usage: newsnow <source> [--json]
        newsnow list [--json] [--profile high-quality|trending|all]
        newsnow feed [--json] [--profile high-quality|trending|all]
+       newsnow quality-rubric --json
 
 Commands:
   list          List available sources (default profile: high-quality)
   feed          Aggregate multiple sources into one feed (default profile: high-quality)
+  quality-rubric  Print fixed quality rubric/schema for AI judges
   <source>      Fetch news from a single source
 
 Options:
   --json        Output as JSON
   --meta        JSON mode only, include fetch/quality/enhance metadata
+  --quality-signals JSON mode only, append quality_signals/gate fields to each item
   --raw         Disable dedupe/quality filtering
   --enhance     Fetch article pages and enrich summary text (extra.hover)
   --enhance-limit <n>  Max items to enhance per source (default: 5)
@@ -212,6 +260,11 @@ function printList() {
   if (parsedArgs.profile !== "all") {
     console.log(`\nUse "--profile all" to view all ${allNames.length} sources.`)
   }
+}
+
+function printQualityRubric() {
+  const rubric = getQualityRubric()
+  console.log(JSON.stringify(rubric, null, 2))
 }
 
 function suggestSimilar(input: string): string[] {
@@ -270,7 +323,70 @@ async function mapLimit<T, R>(
   return result
 }
 
-async function fetchProcessedSource(name: string): Promise<ProcessedSourceResult> {
+function toRate(numerator: number, denominator: number): number {
+  if (denominator <= 0) return 0
+  return Math.round((numerator / denominator) * 10000) / 10000
+}
+
+function aggregateSourceMonitor(result: ProcessedSourceResult): {
+  source: QualityMonitorSource
+  totalItems: number
+  ruleRejectCount: number
+  reviewCount: number
+  passCount: number
+  healthScore: number
+} {
+  const totalItems = result.quality.inputCount + (result.quality.nonArrayInput ? 1 : 0)
+  const ruleRejectCount = result.quality.droppedInvalid
+    + result.quality.droppedLowQuality
+    + result.qualityGate.rule_reject_count
+    + (result.quality.nonArrayInput ? 1 : 0)
+
+  return {
+    source: {
+      source: result.requestedSource,
+      source_used: result.usedSource,
+      item_count: totalItems,
+      rule_reject_rate: toRate(ruleRejectCount, Math.max(1, totalItems)),
+      health_status: result.sourceQualityContext.health_status,
+      fallback_used: result.fallbackUsed,
+    },
+    totalItems,
+    ruleRejectCount,
+    reviewCount: result.qualityGate.review_count,
+    passCount: result.qualityGate.pass_count,
+    healthScore: result.sourceQualityContext.source_health_score,
+  }
+}
+
+function buildQualityAlerts(monitor: QualityMonitor): string[] {
+  const alerts: string[] = []
+  const rejectRate = toRate(monitor.rule_reject_count, Math.max(1, monitor.total_items))
+  if (monitor.degraded_source_count > 0) {
+    alerts.push(`degraded_source_count:${monitor.degraded_source_count}`)
+  }
+  if (monitor.fallback_source_count > 0) {
+    alerts.push(`fallback_source_count:${monitor.fallback_source_count}`)
+  }
+  if (rejectRate >= 0.3) {
+    alerts.push(`high_rule_reject_rate:${rejectRate}`)
+  }
+  const badSources = monitor.sources
+    .filter(item => item.rule_reject_rate >= 0.4)
+    .map(item => `${item.source}:${item.rule_reject_rate}`)
+  if (badSources.length) {
+    alerts.push(`source_reject_rate_spike:${badSources.join(",")}`)
+  }
+  return alerts
+}
+
+async function fetchProcessedSource(
+  name: string,
+  options: {
+    sourceProfile: string
+    attachSignals: boolean
+  },
+): Promise<ProcessedSourceResult> {
   const fetched = await fetchWithFallback(name, sources, {
     enableFallback: !parsedArgs.noFallback,
   })
@@ -290,6 +406,28 @@ async function fetchProcessedSource(name: string): Promise<ProcessedSourceResult
     enhanceStats = enhanced.stats
   }
 
+  const sourceQualityContext = buildSourceQualityContext(
+    fetched.health,
+    fetched.attempts,
+    fetched.fallbackUsed,
+  )
+  const qualityEvaluated = evaluateQualityForItems(items, {
+    sourceProfile: options.sourceProfile,
+    sourceContexts: {
+      [fetched.usedSource]: sourceQualityContext,
+    },
+    defaultSource: fetched.usedSource,
+    attachSignals: options.attachSignals,
+    enableHardReject: !parsedArgs.raw,
+  })
+  items = qualityEvaluated.items
+  const qualityBySource = summarizeQualityBySource(qualityEvaluated.evaluations)[fetched.usedSource] || {
+    total_items: 0,
+    rule_reject_count: 0,
+    review_count: 0,
+    pass_count: 0,
+  }
+
   return {
     requestedSource: fetched.requestedSource,
     usedSource: fetched.usedSource,
@@ -297,6 +435,9 @@ async function fetchProcessedSource(name: string): Promise<ProcessedSourceResult
     health: fetched.health,
     attempts: fetched.attempts,
     quality: qualityStats,
+    qualityGate: qualityEvaluated.stats,
+    qualityBySource,
+    sourceQualityContext,
     enhance: enhanceStats,
     items,
   }
@@ -312,26 +453,51 @@ async function fetchSource(name: string) {
   }
 
   try {
-    const result = await fetchProcessedSource(name)
+    const result = await fetchProcessedSource(name, {
+      sourceProfile: "single-source",
+      attachSignals: parsedArgs.json && parsedArgs.qualitySignals,
+    })
     if (!parsedArgs.json && result.quality.nonArrayInput) {
       console.error(`Warning: source "${result.usedSource}" returned a non-array payload; treated as empty list.`)
     }
 
+    const sourceAgg = aggregateSourceMonitor(result)
+    const qualityMonitor: QualityMonitor = {
+      total_items: sourceAgg.totalItems,
+      rule_reject_count: sourceAgg.ruleRejectCount,
+      review_count: sourceAgg.reviewCount,
+      pass_count: sourceAgg.passCount,
+      degraded_source_count: sourceAgg.source.health_status === "healthy" ? 0 : 1,
+      fallback_source_count: result.fallbackUsed ? 1 : 0,
+      avg_source_health_score: sourceAgg.healthScore,
+      sources: [sourceAgg.source],
+      quality_alerts: [],
+    }
+    qualityMonitor.quality_alerts = buildQualityAlerts(qualityMonitor)
+
     if (parsedArgs.json) {
-      if (parsedArgs.meta) {
-        console.log(JSON.stringify({
-          source: result.requestedSource,
-          sourceUsed: result.usedSource,
-          fallbackUsed: result.fallbackUsed,
-          health: result.health,
-          attempts: result.attempts,
-          quality: result.quality,
-          enhance: result.enhance,
-          items: result.items,
-        }, null, 2))
-      } else {
+      const includeQualityEnvelope = parsedArgs.meta || parsedArgs.qualitySignals
+      if (!includeQualityEnvelope) {
         console.log(JSON.stringify(result.items, null, 2))
+        return
       }
+
+      const payload: Record<string, unknown> = {
+        source: result.requestedSource,
+        sourceUsed: result.usedSource,
+        fallbackUsed: result.fallbackUsed,
+        items: result.items,
+        quality_schema_version: QUALITY_SCHEMA_VERSION,
+        quality_monitor: qualityMonitor,
+        quality_policy: QUALITY_POLICY,
+      }
+      if (parsedArgs.meta) {
+        payload.health = result.health
+        payload.attempts = result.attempts
+        payload.quality = result.quality
+        payload.enhance = result.enhance
+      }
+      console.log(JSON.stringify(payload, null, 2))
       return
     }
 
@@ -377,7 +543,10 @@ async function fetchFeed() {
 
   const settled = await mapLimit(profileSources, parsedArgs.feedConcurrency, async (name) => {
     try {
-      const result = await fetchProcessedSource(name)
+      const result = await fetchProcessedSource(name, {
+        sourceProfile: parsedArgs.profile,
+        attachSignals: false,
+      })
       return { name, result }
     } catch (error: any) {
       return { name, error: String(error?.message || error) }
@@ -386,6 +555,11 @@ async function fetchFeed() {
 
   const reports: FeedSourceReport[] = []
   const collected: NewsItem[] = []
+  const sourceContexts: Record<string, SourceQualityContext> = {}
+  const qualitySources: QualityMonitorSource[] = []
+  const healthScores: number[] = []
+  let sourceRuleRejectCount = 0
+  let sourceTotalItems = 0
   for (const item of settled) {
     if ("error" in item) {
       reports.push({
@@ -394,10 +568,20 @@ async function fetchFeed() {
         itemCount: 0,
         error: item.error,
       })
+      qualitySources.push({
+        source: item.name,
+        item_count: 0,
+        rule_reject_rate: 1,
+        health_status: "failed",
+        fallback_used: false,
+      })
+      healthScores.push(0)
       continue
     }
 
     const result = item.result
+    sourceContexts[result.usedSource] = result.sourceQualityContext
+    sourceContexts[result.requestedSource] = result.sourceQualityContext
     const picked = result.items.slice(0, parsedArgs.perSource).map(news => ({
       ...news,
       extra: {
@@ -416,6 +600,12 @@ async function fetchFeed() {
       health: `${result.health.status}:${result.health.score}`,
       itemCount: picked.length,
     })
+
+    const sourceAggregate = aggregateSourceMonitor(result)
+    qualitySources.push(sourceAggregate.source)
+    healthScores.push(sourceAggregate.healthScore)
+    sourceRuleRejectCount += sourceAggregate.ruleRejectCount
+    sourceTotalItems += sourceAggregate.totalItems
   }
 
   const merged = normalizeNewsItems(collected, {
@@ -428,21 +618,61 @@ async function fetchFeed() {
     const tb = toTimestamp(b.pubDate ?? b.extra?.date) ?? 0
     return tb - ta
   })
-  const items = sorted.slice(0, parsedArgs.feedLimit)
+  const feedSliced = sorted.slice(0, parsedArgs.feedLimit)
+  const evaluatedFeed = evaluateQualityForItems(feedSliced, {
+    sourceProfile: parsedArgs.profile,
+    sourceContexts,
+    defaultSource: "feed",
+    attachSignals: parsedArgs.json && parsedArgs.qualitySignals,
+    enableHardReject: !parsedArgs.raw,
+  })
+  const items = evaluatedFeed.items
+
+  const totalItems = sourceTotalItems
+  const ruleRejectCount = sourceRuleRejectCount
+    + merged.stats.droppedInvalid
+    + merged.stats.droppedLowQuality
+    + (merged.stats.nonArrayInput ? 1 : 0)
+    + evaluatedFeed.stats.rule_reject_count
+  const degradedSourceCount = qualitySources.filter(item => item.health_status !== "healthy").length
+  const fallbackSourceCount = qualitySources.filter(item => item.fallback_used).length
+  const avgSourceHealthScore = healthScores.length
+    ? Math.round((healthScores.reduce((sum, n) => sum + n, 0) / healthScores.length) * 100) / 100
+    : 0
+  const qualityMonitor: QualityMonitor = {
+    total_items: totalItems,
+    rule_reject_count: ruleRejectCount,
+    review_count: evaluatedFeed.stats.review_count,
+    pass_count: evaluatedFeed.stats.pass_count,
+    degraded_source_count: degradedSourceCount,
+    fallback_source_count: fallbackSourceCount,
+    avg_source_health_score: avgSourceHealthScore,
+    sources: qualitySources,
+    quality_alerts: [],
+  }
+  qualityMonitor.quality_alerts = buildQualityAlerts(qualityMonitor)
 
   if (parsedArgs.json) {
-    if (parsedArgs.meta) {
-      console.log(JSON.stringify({
-        mode: "feed",
-        profile: parsedArgs.profile,
-        requestedSourceCount: profileSources.length,
-        reports,
-        quality: merged.stats,
-        items,
-      }, null, 2))
-    } else {
+    const includeQualityEnvelope = parsedArgs.meta || parsedArgs.qualitySignals
+    if (!includeQualityEnvelope) {
       console.log(JSON.stringify(items, null, 2))
+      return
     }
+
+    const payload: Record<string, unknown> = {
+      mode: "feed",
+      profile: parsedArgs.profile,
+      requestedSourceCount: profileSources.length,
+      items,
+      quality_schema_version: QUALITY_SCHEMA_VERSION,
+      quality_monitor: qualityMonitor,
+      quality_policy: QUALITY_POLICY,
+    }
+    if (parsedArgs.meta) {
+      payload.reports = reports
+      payload.quality = merged.stats
+    }
+    console.log(JSON.stringify(payload, null, 2))
     return
   }
 
@@ -465,6 +695,8 @@ if (!command || command === "help" || command === "--help" || command === "-h") 
   printHelp()
 } else if (command === "list") {
   printList()
+} else if (command === "quality-rubric") {
+  printQualityRubric()
 } else if (command === "feed") {
   fetchFeed()
 } else {

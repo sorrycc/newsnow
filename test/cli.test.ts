@@ -78,6 +78,17 @@ describe("cli", () => {
     expect(code).not.toBe(0)
     expect(err).toContain("Missing value for --profile")
   })
+
+  test("quality-rubric command returns schema json", async () => {
+    const proc = Bun.spawn(["bun", "src/cli.ts", "quality-rubric", "--json"], {
+      cwd: import.meta.dir + "/..",
+      stdout: "pipe",
+    })
+    const output = await new Response(proc.stdout).text()
+    const parsed = JSON.parse(output)
+    expect(parsed.quality_schema_version).toBeDefined()
+    expect(parsed.ai_output_schema?.properties?.decision?.enum).toContain("downrank")
+  })
 })
 
 describe("fetch source", () => {
@@ -89,4 +100,21 @@ describe("fetch source", () => {
     expect(items[0]).toHaveProperty("id")
     expect(items[0]).toHaveProperty("url")
   }, 15000)
+
+  test("hackernews quality-signals json includes monitor fields", async () => {
+    const proc = Bun.spawn(["bun", "src/cli.ts", "hackernews", "--json", "--quality-signals"], {
+      cwd: import.meta.dir + "/..",
+      stdout: "pipe",
+    })
+    const output = await new Response(proc.stdout).text()
+    const parsed = JSON.parse(output)
+    expect(parsed.quality_schema_version).toBeDefined()
+    expect(parsed.quality_monitor).toBeDefined()
+    expect(Array.isArray(parsed.items)).toBe(true)
+    if (parsed.items.length > 0) {
+      expect(parsed.items[0].quality_signals).toBeDefined()
+      expect(parsed.items[0].quality_gate_hint).toBeDefined()
+      expect(Array.isArray(parsed.items[0].quality_reasons)).toBe(true)
+    }
+  }, 30000)
 })

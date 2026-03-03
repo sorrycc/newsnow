@@ -20,6 +20,13 @@ export interface SourceHealth {
   reason: string
 }
 
+export interface SourceQualityContext {
+  source_health_score: number
+  fallback_used: boolean
+  attempt_error_count: number
+  health_status: SourceHealth["status"]
+}
+
 export interface FetchWithFallbackResult {
   requestedSource: string
   usedSource: string
@@ -27,6 +34,19 @@ export interface FetchWithFallbackResult {
   fallbackUsed: boolean
   attempts: SourceAttempt[]
   health: SourceHealth
+}
+
+export function buildSourceQualityContext(
+  health: SourceHealth,
+  attempts: SourceAttempt[],
+  fallbackUsed: boolean,
+): SourceQualityContext {
+  return {
+    source_health_score: health.score,
+    fallback_used: fallbackUsed,
+    attempt_error_count: attempts.filter(a => !a.ok).length,
+    health_status: health.status,
+  }
 }
 
 const SOURCE_FALLBACKS: Record<string, string[]> = {
