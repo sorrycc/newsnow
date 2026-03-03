@@ -67,6 +67,17 @@ describe("cli", () => {
     const err = await new Response(proc.stderr).text()
     expect(err).toContain("Unknown source")
   })
+
+  test("missing value for profile fails fast", async () => {
+    const proc = Bun.spawn(["bun", "src/cli.ts", "list", "--profile", "--json"], {
+      cwd: import.meta.dir + "/..",
+      stderr: "pipe",
+    })
+    const err = await new Response(proc.stderr).text()
+    const code = await proc.exited
+    expect(code).not.toBe(0)
+    expect(err).toContain("Missing value for --profile")
+  })
 })
 
 describe("fetch source", () => {

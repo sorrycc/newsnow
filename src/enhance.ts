@@ -140,10 +140,17 @@ export async function enhanceNewsItems(
   const limit = Math.max(0, options.limit ?? 5)
   const concurrency = Math.max(1, options.concurrency ?? 3)
 
-  if (!limit || !items.length) {
+  if (!items.length) {
     return {
       items,
-      stats: { attempted: 0, enhanced: 0, failed: 0, skipped: items.length ? 0 : 0 },
+      stats: { attempted: 0, enhanced: 0, failed: 0, skipped: 0 },
+    }
+  }
+
+  if (!limit) {
+    return {
+      items,
+      stats: { attempted: 0, enhanced: 0, failed: 0, skipped: items.length },
     }
   }
 

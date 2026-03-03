@@ -67,4 +67,13 @@ describe("enhanceNewsItems", () => {
     expect(result.stats.attempted).toBe(0)
     expect(result.stats.enhanced).toBe(0)
   })
+
+  test("counts skipped items when enhance limit is zero", async () => {
+    const result = await enhanceNewsItems([
+      { id: "1", title: "a", url: "https://example.com/a" },
+      { id: "2", title: "b", url: "https://example.com/b" },
+    ], { limit: 0 })
+    expect(result.stats.attempted).toBe(0)
+    expect(result.stats.skipped).toBe(2)
+  })
 })

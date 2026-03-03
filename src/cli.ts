@@ -45,9 +45,19 @@ interface FeedSourceReport {
   error?: string
 }
 
-function parsePositiveInt(raw: string | undefined, fallback: number): number {
-  const n = Number(raw)
-  if (!Number.isFinite(n) || n <= 0) return fallback
+function requireOptionValue(argv: string[], index: number, flag: string): string {
+  const value = argv[index + 1]
+  if (!value || value.startsWith("--")) {
+    throw new Error(`Missing value for ${flag}`)
+  }
+  return value
+}
+
+function parsePositiveIntStrict(value: string, flag: string): number {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new Error(`Invalid value for ${flag}: ${value}`)
+  }
   return Math.floor(n)
 }
 
@@ -91,28 +101,35 @@ function parseCliArgs(argv: string[]): ParsedCliArgs {
       continue
     }
     if (arg === "--enhance-limit") {
-      enhanceLimit = parsePositiveInt(argv[i + 1], enhanceLimit)
+      const value = requireOptionValue(argv, i, "--enhance-limit")
+      enhanceLimit = parsePositiveIntStrict(value, "--enhance-limit")
       i++
       continue
     }
     if (arg === "--profile") {
-      const p = argv[i + 1] || ""
-      if (isSourceProfile(p)) profile = p
+      const p = requireOptionValue(argv, i, "--profile")
+      if (!isSourceProfile(p)) {
+        throw new Error(`Invalid value for --profile: ${p}`)
+      }
+      profile = p
       i++
       continue
     }
     if (arg === "--limit") {
-      feedLimit = parsePositiveInt(argv[i + 1], feedLimit)
+      const value = requireOptionValue(argv, i, "--limit")
+      feedLimit = parsePositiveIntStrict(value, "--limit")
       i++
       continue
     }
     if (arg === "--per-source") {
-      perSource = parsePositiveInt(argv[i + 1], perSource)
+      const value = requireOptionValue(argv, i, "--per-source")
+      perSource = parsePositiveIntStrict(value, "--per-source")
       i++
       continue
     }
     if (arg === "--concurrency") {
-      feedConcurrency = parsePositiveInt(argv[i + 1], feedConcurrency)
+      const value = requireOptionValue(argv, i, "--concurrency")
+      feedConcurrency = parsePositiveIntStrict(value, "--concurrency")
       i++
       continue
     }
@@ -134,7 +151,13 @@ function parseCliArgs(argv: string[]): ParsedCliArgs {
   }
 }
 
-const parsedArgs = parseCliArgs(process.argv.slice(2))
+let parsedArgs: ParsedCliArgs
+try {
+  parsedArgs = parseCliArgs(process.argv.slice(2))
+} catch (error: any) {
+  console.error(`Error: ${String(error?.message || error)}`)
+  process.exit(1)
+}
 const command = parsedArgs.command
 
 function printHelp() {

@@ -76,13 +76,21 @@ const ranking = async (): Promise<NewsItem[]> => {
   ]
 
   for (const url of primaryUrls) {
-    const res: HotVideoRes = await myFetch(url, { headers: BILI_HEADERS })
-    const items = toVideoItems(res)
-    if (items.length) return items
+    try {
+      const res: HotVideoRes = await myFetch(url, { headers: BILI_HEADERS })
+      const items = toVideoItems(res)
+      if (items.length) return items
+    } catch {
+      // Continue to next ranking endpoint.
+    }
   }
 
   // If ranking endpoints are blocked by risk-control, fallback to popular list.
-  return hotVideo()
+  try {
+    return await hotVideo()
+  } catch {
+    return []
+  }
 }
 
 export default {
