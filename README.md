@@ -7,6 +7,11 @@
 
 A command-line tool to fetch trending news and hot topics from 66 sources across 44 platforms. Built with TypeScript, runs on Bun.
 
+Now includes quality-first defaults:
+- `list` and `feed` default to a curated `high-quality` source profile
+- automatic source fallback for blocked/empty sources
+- optional article summary enhancement (`--enhance`)
+
 Ported from [ourongxing/newsnow](https://github.com/ourongxing/newsnow) server sources.
 
 ## Install
@@ -27,8 +32,17 @@ npx newsnow
 # Show help
 newsnow --help
 
-# List all available sources
+# List sources (default profile: high-quality)
 newsnow list
+
+# List all sources
+newsnow list --profile all
+
+# Aggregate feed from multiple sources (default profile: high-quality)
+newsnow feed
+
+# Aggregate feed from trending profile
+newsnow feed --profile trending
 
 # Fetch news from a source
 newsnow hackernews
@@ -36,9 +50,99 @@ newsnow hackernews
 # Output as JSON (pipeable to jq, etc.)
 newsnow hackernews --json
 
-# List sources as JSON
-newsnow list --json
+# Include fetch/quality/enhance metadata in JSON mode
+newsnow hackernews --json --meta
+
+# Print AI quality rubric/schema
+newsnow quality-rubric --json
+
+# Append per-item quality signals for AI judge
+newsnow feed --json --meta --quality-signals
+
+# Enhance summary text by fetching article pages
+newsnow thepaper --json --enhance --enhance-limit 5
 ```
+
+## Commands
+
+### list
+
+List sources by profile. Default profile is `high-quality`.
+
+```bash
+newsnow list
+newsnow list --profile all
+newsnow list --profile trending --json
+```
+
+### feed
+
+Aggregate multiple sources into one feed.
+
+```bash
+newsnow feed
+newsnow feed --profile all --limit 100 --per-source 2
+newsnow feed --json --meta
+newsnow feed --json --meta --quality-signals
+```
+
+### quality-rubric
+
+Return fixed quality rubric and AI decision schema in JSON format.
+
+```bash
+newsnow quality-rubric --json
+```
+
+### source fetch
+
+Fetch a single source.
+
+```bash
+newsnow hackernews
+newsnow hackernews --json
+newsnow linuxdo --json --meta
+```
+
+## Profiles
+
+- `high-quality` (default): editorial/news-readability oriented sources
+- `trending`: hot-topic/trending style sources
+- `all`: all registered sources
+
+## Common Options
+
+- `--json` Output JSON
+- `--meta` Include fetch/quality/enhance metadata (JSON mode)
+- `--quality-signals` JSON mode only, append `quality_signals`/`quality_gate_hint`/`quality_reasons` to each item
+- `--raw` Disable dedupe/quality filtering
+- `--enhance` Fetch article pages and enrich `extra.hover`
+- `--enhance-limit <n>` Max items to enhance per source (default: `5`)
+- `--no-fallback` Disable automatic source fallback
+- `--profile <high-quality|trending|all>` Source profile for `list`/`feed`
+- `--all` Shortcut for `--profile all`
+- `--limit <n>` Max total items in `feed` mode (default: `120`)
+- `--per-source <n>` Max items per source in `feed` mode (default: `8`)
+- `--concurrency <n>` Fetch concurrency in `feed` mode (default: `4`)
+
+## AI Quality Workflow
+
+Use this 4-step protocol when `newsnow` acts as AI content input:
+
+```bash
+# 1) Get fixed rubric and decision schema
+newsnow quality-rubric --json
+
+# 2) Get candidates + quality monitor + per-item signals
+newsnow feed --json --meta --quality-signals
+```
+
+3. AI only evaluates `quality_gate_hint=review` or high-risk items.
+4. AI returns final decision: `reject | downrank | pass`.
+
+Runtime JSON (when `--meta` or `--quality-signals`):
+- Top-level: `quality_schema_version`, `quality_monitor`, `quality_policy`
+- Per-item: `quality_signals`, `quality_gate_hint`, `quality_reasons`
 
 ## Sources
 
@@ -102,7 +206,7 @@ Some sources may be blocked by Cloudflare or require authentication:
 ## Testing
 
 ```bash
-bun test
+bun run test
 ```
 
 ## Dependencies

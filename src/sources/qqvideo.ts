@@ -1,4 +1,3 @@
-import dayjs from "dayjs"
 import { myFetch } from "../fetch.js"
 import type { NewsItem, SourceDef } from "../types.js"
 
@@ -9,6 +8,7 @@ interface CardParams {
 }
 
 interface WapResp {
+  ret?: number
   data: {
     card: {
       children_list: {
@@ -61,13 +61,21 @@ const hotSearch = async (): Promise<NewsItem[]> => {
       },
     },
   })
-  return resp?.data?.card?.children_list?.list?.cards?.map((item) => ({
-    id: item?.id,
-    title: item?.params?.title,
-    url: getQqVideoUrl(item?.id),
-    pubDate: item?.params?.publish_date ?? dayjs().format("YYYY-MM-DD"),
-    extra: { hover: item?.params?.sub_title },
-  }))
+  const cards = resp?.data?.card?.children_list?.list?.cards
+  if (!Array.isArray(cards)) return []
+
+  return cards
+    .filter(item => !!item?.id && !!item?.params?.title)
+    .map((item) => {
+      const parsedTime = item.params?.publish_date ? Date.parse(item.params.publish_date) : NaN
+      return {
+        id: item.id,
+        title: item.params.title,
+        url: getQqVideoUrl(item.id),
+        pubDate: Number.isNaN(parsedTime) ? undefined : parsedTime,
+        extra: { hover: item.params.sub_title },
+      }
+    })
 }
 
 export default { "qqvideo-tv-hotsearch": hotSearch } satisfies SourceDef
