@@ -384,11 +384,12 @@ async function fetchFeed() {
       },
     }))
     collected.push(...picked)
+    const status = result.health.status === "failed" || picked.length === 0 ? "failed" : "ok"
     reports.push({
       source: result.requestedSource,
       sourceUsed: result.usedSource,
       fallbackUsed: result.fallbackUsed,
-      status: "ok",
+      status,
       health: `${result.health.status}:${result.health.score}`,
       itemCount: picked.length,
     })
