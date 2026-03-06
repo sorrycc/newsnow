@@ -92,7 +92,6 @@ async function main() {
 
   // 8. Push
   console.log("\nGit push...");
-  await run(["git", "push"], { dry: dryRun });
   await run(["git", "push", "--tags"], { dry: dryRun });
 
   // 9. GitHub Release
