@@ -98,6 +98,15 @@ async function main() {
   console.log("\nGitHub Release...");
   await run(["gh", "release", "create", `v${newVersion}`, "--generate-notes"], { dry: dryRun });
 
+  // 10. Update release notes with highlights via claude
+  console.log("\nUpdate release notes with highlights...");
+  await run([
+    "claude",
+    "--allowedTools", "Bash",
+    "-p",
+    `Look at the git log between the previous tag and v${newVersion}. Generate categorized release highlights (Bug Fixes, Improvements, etc.) and update the GitHub release v${newVersion} using "gh release edit". Keep the Full Changelog link at the bottom.`,
+  ], { dry: dryRun });
+
   console.log(`\nDone! Released v${newVersion}`);
 }
 
