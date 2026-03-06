@@ -1,44 +1,37 @@
 import { myFetch } from "../fetch.js"
+import * as cheerio from "cheerio"
 import type { NewsItem, SourceDef } from "../types.js"
 
-interface Res {
-  topic_list: {
-    topics: {
-      id: number
-      title: string
-      visible: boolean
-      archived: boolean
-      pinned: boolean
-      created_at: string
-    }[]
-  }
+function parseDiscourseRSS(xml: string): NewsItem[] {
+  const $ = cheerio.load(xml, { xmlMode: true })
+  const items: NewsItem[] = []
+  $("item").each((_, el) => {
+    const pinned = $(el).find("discourse\\:topicPinned").text()
+    const archived = $(el).find("discourse\\:topicArchived").text()
+    if (pinned === "Yes" || archived === "Yes") return
+    const title = $(el).find("title").text()
+    const link = $(el).find("link").text()
+    const pubDate = $(el).find("pubDate").text()
+    if (title && link) {
+      items.push({
+        id: link,
+        title,
+        url: link,
+        pubDate: pubDate ? new Date(pubDate).getTime() : undefined,
+      })
+    }
+  })
+  return items
 }
 
 const hot = async (): Promise<NewsItem[]> => {
-  const res = await myFetch<Res>("https://linux.do/top/daily.json", {
-    headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36" },
-  })
-  return res.topic_list.topics
-    .filter(k => k.visible && !k.archived && !k.pinned)
-    .map(k => ({
-      id: k.id,
-      title: k.title,
-      url: `https://linux.do/t/topic/${k.id}`,
-    }))
+  const xml: string = await myFetch("https://linux.do/top/daily.rss")
+  return parseDiscourseRSS(xml)
 }
 
 const latest = async (): Promise<NewsItem[]> => {
-  const res = await myFetch<Res>("https://linux.do/latest.json?order=created", {
-    headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36" },
-  })
-  return res.topic_list.topics
-    .filter(k => k.visible && !k.archived && !k.pinned)
-    .map(k => ({
-      id: k.id,
-      title: k.title,
-      pubDate: new Date(k.created_at).valueOf(),
-      url: `https://linux.do/t/topic/${k.id}`,
-    }))
+  const xml: string = await myFetch("https://linux.do/latest.rss")
+  return parseDiscourseRSS(xml)
 }
 
 export default {

@@ -9,11 +9,11 @@ const express = async (): Promise<NewsItem[]> => {
   const $main = $(".news-list")
   const news: NewsItem[] = []
   $main.each((_, el) => {
-    const a = $(el).find(".title_name")
-    const url = a.attr("href")
-    const titleText = a.text()
+    const $el = $(el)
+    const titleText = $el.find(".title_name").text()
     const title = titleText.match(/【(.+)】/)?.[1] ?? titleText
-    const date = $(el).attr("data-date")
+    const url = $el.find(".shear_box").attr("data-href")
+    const date = $el.attr("data-date")
     if (url && title && date) {
       news.push({
         url: baseURL + url,
