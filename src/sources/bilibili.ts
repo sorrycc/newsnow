@@ -43,7 +43,13 @@ const hotSearch = async (): Promise<NewsItem[]> => {
 
 const hotVideo = async (): Promise<NewsItem[]> => {
   const url = "https://api.bilibili.com/x/web-interface/popular"
-  const res: HotVideoRes = await myFetch(url)
+  const res: HotVideoRes = await myFetch(url, {
+    headers: {
+      "Referer": "https://www.bilibili.com",
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    },
+  })
+  if (!res?.data?.list) throw new Error(`Bilibili popular API returned unexpected response: ${JSON.stringify(res).slice(0, 200)}`)
   return res.data.list.map(video => ({
     id: video.bvid,
     title: video.title,
@@ -59,7 +65,13 @@ const hotVideo = async (): Promise<NewsItem[]> => {
 
 const ranking = async (): Promise<NewsItem[]> => {
   const url = "https://api.bilibili.com/x/web-interface/ranking/v2"
-  const res: HotVideoRes = await myFetch(url)
+  const res: HotVideoRes = await myFetch(url, {
+    headers: {
+      "Referer": "https://www.bilibili.com/ranking/all",
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    },
+  })
+  if (!res?.data?.list) throw new Error(`Bilibili ranking API returned unexpected response: ${JSON.stringify(res).slice(0, 200)}`)
   return res.data.list.map(video => ({
     id: video.bvid,
     title: video.title,
