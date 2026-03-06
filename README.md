@@ -36,8 +36,39 @@ newsnow hackernews
 # Output as JSON (pipeable to jq, etc.)
 newsnow hackernews --json
 
+# Pretty-print JSON
+newsnow hackernews --json --pretty
+
+# Limit number of items
+newsnow hackernews --limit 5
+
+# Select specific fields (JSON mode)
+newsnow hackernews --json --fields title,url
+
 # List sources as JSON
 newsnow list --json
+
+# Print machine-readable JSON Schema
+newsnow schema
+```
+
+### JSON Envelopes
+
+All `--json` output uses structured envelopes:
+
+**Fetch** (`newsnow <source> --json`):
+```json
+{ "source": "hackernews", "count": 30, "items": [...] }
+```
+
+**List** (`newsnow list --json`):
+```json
+{ "count": 66, "sources": [{ "name": "hackernews", "category": "hackernews", "envVars": [] }, ...] }
+```
+
+**Errors** (written to stderr):
+```json
+{ "error": "Unknown source \"foo\"", "code": "UNKNOWN_SOURCE", "suggestions": ["foobar"] }
 ```
 
 ## Sources
