@@ -12,7 +12,7 @@
     "start": "bun src/cli.ts",
     "test": "bun test",
     "build": "tsc",
-    "release": "bun run build && npm publish"
+    "release": "bun scripts/release.ts"
   },
   "dependencies": {
     "cheerio": "^1.0.0",
